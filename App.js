@@ -7,24 +7,37 @@ import {
   ActivityIndicator, 
   TouchableOpacity,
   ScrollView,
-  Modal
+  Modal,
+  Animated,
+  Dimensions
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import MapComponent from './components/MapComponent';
 import { requestLocationPermission, getCurrentPosition } from './utils/locationUtils';
 import { searchNearbyPlaces, getPlaceCategories } from './services/placesService';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+
+const { width, height } = Dimensions.get('window');
 
 export default function App() {
-  const [userLocation, setUserLocation] = useState(null); // Реальное местоположение пользователя
-  const [mapRegion, setMapRegion] = useState(null); // Текущий регион просмотра карты
+  const [userLocation, setUserLocation] = useState(null);
+  const [mapRegion, setMapRegion] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
   const [loading, setLoading] = useState(true);
   const [nearbyPlaces, setNearbyPlaces] = useState([]);
   const [searchingPlaces, setSearchingPlaces] = useState(false);
   const [showCategories, setShowCategories] = useState(false);
+  const [fadeAnim] = useState(new Animated.Value(0));
+  const [slideAnim] = useState(new Animated.Value(height));
 
   useEffect(() => {
     initializeLocation();
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 1000,
+      useNativeDriver: true,
+    }).start();
   }, []);
 
   const initializeLocation = async () => {
@@ -40,8 +53,8 @@ export default function App() {
       }
 
       const currentLocation = await getCurrentPosition();
-      setUserLocation(currentLocation); // Сохраняем реальное местоположение
-      setMapRegion(currentLocation); // Устанавливаем начальный регион карты
+      setUserLocation(currentLocation);
+      setMapRegion(currentLocation);
       setLoading(false);
     } catch (error) {
       console.error('Ошибка инициализации местоположения:', error);
@@ -58,11 +71,10 @@ export default function App() {
       setSearchingPlaces(true);
       setShowCategories(false);
       
-      // Ищем места относительно реального местоположения пользователя
       const places = await searchNearbyPlaces(
         userLocation.latitude, 
         userLocation.longitude, 
-        2000, // 2км радиус
+        2000,
         amenity
       );
       
@@ -83,14 +95,13 @@ export default function App() {
     try {
       const currentLocation = await getCurrentPosition();
       setUserLocation(currentLocation);
-      setMapRegion(currentLocation); // Возвращаем карту к текущему местоположению
+      setMapRegion(currentLocation);
     } catch (error) {
       Alert.alert('Ошибка', 'Не удалось обновить местоположение');
     }
   };
 
   const handleRegionChange = (region) => {
-    // Обновляем только регион просмотра карты, не реальное местоположение
     setMapRegion(region);
   };
 
@@ -100,89 +111,182 @@ export default function App() {
     }
   };
 
+  const openCategories = () => {
+    setShowCategories(true);
+    Animated.timing(slideAnim, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const closeCategories = () => {
+    Animated.timing(slideAnim, {
+      toValue: height,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowCategories(false);
+    });
+  };
+
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0066cc" />
-        <Text style={styles.loadingText}>Определяем ваше местоположение...</Text>
-      </View>
+      <LinearGradient
+        colors={['#667eea', '#764ba2']}
+        style={styles.loadingContainer}
+      >
+        <View style={styles.loadingCard}>
+          <ActivityIndicator size="large" color="#ffffff" />
+          <Text style={styles.loadingText}>Определяем ваше местоположение...</Text>
+          <View style={styles.loadingDots}>
+            <View style={[styles.dot, styles.dot1]} />
+            <View style={[styles.dot, styles.dot2]} />
+            <View style={[styles.dot, styles.dot3]} />
+          </View>
+        </View>
+      </LinearGradient>
     );
   }
 
   if (errorMsg) {
     return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>{errorMsg}</Text>
-        <Text style={styles.errorSubtext}>
-          Пожалуйста, разрешите доступ к местоположению в настройках приложения
-        </Text>
-        <TouchableOpacity style={styles.retryButton} onPress={initializeLocation}>
-          <Text style={styles.retryButtonText}>Попробовать снова</Text>
-        </TouchableOpacity>
-      </View>
+      <LinearGradient
+        colors={['#ff7b7b', '#ff416c']}
+        style={styles.errorContainer}
+      >
+        <View style={styles.errorCard}>
+          <Ionicons name="location-outline" size={64} color="#ffffff" />
+          <Text style={styles.errorText}>{errorMsg}</Text>
+          <Text style={styles.errorSubtext}>
+            Пожалуйста, разрешите доступ к местоположению в настройках приложения
+          </Text>
+          <TouchableOpacity style={styles.retryButton} onPress={initializeLocation}>
+            <LinearGradient
+              colors={['#4facfe', '#00f2fe']}
+              style={styles.retryButtonGradient}
+            >
+              <Text style={styles.retryButtonText}>Попробовать снова</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
     );
   }
 
   const categories = getPlaceCategories();
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>CoolTrips - Ваши путешествия</Text>
+    <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
+      <StatusBar style="light" />
       
+      {/* Красивый заголовок с градиентом */}
+      <LinearGradient
+        colors={['#667eea', '#764ba2']}
+        style={styles.header}
+      >
+        <Text style={styles.headerTitle}>CoolTrips</Text>
+        <Text style={styles.headerSubtitle}>Откройте мир вокруг себя</Text>
+      </LinearGradient>
+      
+      {/* Карта */}
       {mapRegion && userLocation && (
-        <MapComponent 
-          region={mapRegion}
-          userLocation={userLocation}
-          onRegionChange={handleRegionChange}
-          markers={nearbyPlaces}
-        />
+        <View style={styles.mapContainer}>
+          <MapComponent 
+            region={mapRegion}
+            userLocation={userLocation}
+            onRegionChange={handleRegionChange}
+            markers={nearbyPlaces}
+          />
+        </View>
       )}
 
-      <View style={styles.controlsContainer}>
+      {/* Плавающие кнопки управления */}
+      <View style={styles.floatingControls}>
         <TouchableOpacity 
-          style={styles.searchButton} 
-          onPress={() => setShowCategories(true)}
-          disabled={searchingPlaces}
-        >
-          <Text style={styles.searchButtonText}>
-            {searchingPlaces ? 'Поиск...' : '🔍 Найти места'}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.centerButton} 
+          style={styles.floatingButton} 
           onPress={centerOnUserLocation}
         >
-          <Text style={styles.centerButtonText}>📍</Text>
+          <LinearGradient
+            colors={['#ff9a9e', '#fecfef']}
+            style={styles.floatingButtonGradient}
+          >
+            <Ionicons name="locate" size={24} color="#ffffff" />
+          </LinearGradient>
         </TouchableOpacity>
 
         {nearbyPlaces.length > 0 && (
           <TouchableOpacity 
-            style={styles.clearButton} 
+            style={styles.floatingButton} 
             onPress={() => setNearbyPlaces([])}
           >
-            <Text style={styles.clearButtonText}>Очистить</Text>
+            <LinearGradient
+              colors={['#ff6b6b', '#ee5a52']}
+              style={styles.floatingButtonGradient}
+            >
+              <Ionicons name="close" size={24} color="#ffffff" />
+            </LinearGradient>
           </TouchableOpacity>
         )}
       </View>
 
-      <View style={styles.infoContainer}>
-        <View style={styles.coordinatesRow}>
-          <Text style={styles.infoLabel}>Ваше местоположение:</Text>
-          <TouchableOpacity onPress={handleRefreshLocation}>
-            <Text style={styles.refreshButton}>🔄</Text>
+      {/* Основная кнопка поиска */}
+      <View style={styles.searchContainer}>
+        <TouchableOpacity 
+          style={styles.searchButton} 
+          onPress={openCategories}
+          disabled={searchingPlaces}
+        >
+          <LinearGradient
+            colors={searchingPlaces ? ['#a8a8a8', '#888888'] : ['#4facfe', '#00f2fe']}
+            style={styles.searchButtonGradient}
+          >
+            {searchingPlaces ? (
+              <ActivityIndicator size="small" color="#ffffff" />
+            ) : (
+              <Ionicons name="search" size={24} color="#ffffff" />
+            )}
+            <Text style={styles.searchButtonText}>
+              {searchingPlaces ? 'Поиск...' : 'Найти места рядом'}
+            </Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
+
+      {/* Информационная карточка */}
+      <View style={styles.infoCard}>
+        <View style={styles.infoHeader}>
+          <View style={styles.infoTitleContainer}>
+            <Ionicons name="location" size={20} color="#667eea" />
+            <Text style={styles.infoTitle}>Ваше местоположение</Text>
+          </View>
+          <TouchableOpacity onPress={handleRefreshLocation} style={styles.refreshButton}>
+            <Ionicons name="refresh" size={20} color="#667eea" />
           </TouchableOpacity>
         </View>
-        <Text style={styles.infoText}>
-          Широта: {userLocation?.latitude.toFixed(6)}
-        </Text>
-        <Text style={styles.infoText}>
-          Долгота: {userLocation?.longitude.toFixed(6)}
-        </Text>
+        
+        <View style={styles.coordinatesContainer}>
+          <View style={styles.coordinateItem}>
+            <Text style={styles.coordinateLabel}>Широта</Text>
+            <Text style={styles.coordinateValue}>
+              {userLocation?.latitude.toFixed(6)}
+            </Text>
+          </View>
+          <View style={styles.coordinateItem}>
+            <Text style={styles.coordinateLabel}>Долгота</Text>
+            <Text style={styles.coordinateValue}>
+              {userLocation?.longitude.toFixed(6)}
+            </Text>
+          </View>
+        </View>
+        
         {nearbyPlaces.length > 0 && (
-          <Text style={styles.infoText}>
-            Найдено мест: {nearbyPlaces.length}
-          </Text>
+          <View style={styles.placesInfo}>
+            <Ionicons name="pin" size={16} color="#4facfe" />
+            <Text style={styles.placesText}>
+              Найдено мест: {nearbyPlaces.length}
+            </Text>
+          </View>
         )}
       </View>
 
@@ -190,138 +294,198 @@ export default function App() {
       <Modal
         visible={showCategories}
         transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowCategories(false)}
+        animationType="none"
+        onRequestClose={closeCategories}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Выберите категорию</Text>
-            <ScrollView style={styles.categoriesList}>
-              {categories.map((category) => (
+          <Animated.View 
+            style={[
+              styles.modalContent,
+              {
+                transform: [{ translateY: slideAnim }]
+              }
+            ]}
+          >
+            <LinearGradient
+              colors={['#667eea', '#764ba2']}
+              style={styles.modalHeader}
+            >
+              <Text style={styles.modalTitle}>Выберите категорию</Text>
+              <TouchableOpacity onPress={closeCategories} style={styles.modalCloseButton}>
+                <Ionicons name="close" size={24} color="#ffffff" />
+              </TouchableOpacity>
+            </LinearGradient>
+            
+            <ScrollView style={styles.categoriesList} showsVerticalScrollIndicator={false}>
+              {categories.map((category, index) => (
                 <TouchableOpacity
                   key={category.key}
-                  style={styles.categoryItem}
+                  style={[styles.categoryItem, { marginTop: index === 0 ? 20 : 0 }]}
                   onPress={() => handleSearchPlaces(category.key)}
                 >
-                  <Text style={styles.categoryText}>{category.label}</Text>
+                  <LinearGradient
+                    colors={['#ffffff', '#f8f9fa']}
+                    style={styles.categoryGradient}
+                  >
+                    <Text style={styles.categoryText}>{category.label}</Text>
+                    <Ionicons name="chevron-forward" size={20} color="#667eea" />
+                  </LinearGradient>
                 </TouchableOpacity>
               ))}
             </ScrollView>
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setShowCategories(false)}
-            >
-              <Text style={styles.closeButtonText}>Закрыть</Text>
-            </TouchableOpacity>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
-
-      <StatusBar style="auto" />
-    </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#f8f9fa',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+  },
+  loadingCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    backdropFilter: 'blur(10px)',
   },
   loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#666',
+    marginTop: 20,
+    fontSize: 18,
+    color: '#ffffff',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  loadingDots: {
+    flexDirection: 'row',
+    marginTop: 20,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#ffffff',
+    marginHorizontal: 4,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
     padding: 20,
   },
+  errorCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    backdropFilter: 'blur(10px)',
+  },
   errorText: {
-    fontSize: 18,
-    color: '#d32f2f',
+    fontSize: 20,
+    color: '#ffffff',
     textAlign: 'center',
-    marginBottom: 10,
+    marginTop: 20,
+    fontWeight: '600',
   },
   errorSubtext: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
-    marginBottom: 20,
+    marginTop: 10,
+    marginBottom: 30,
   },
   retryButton: {
-    backgroundColor: '#0066cc',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 5,
+    borderRadius: 25,
+    overflow: 'hidden',
+  },
+  retryButtonGradient: {
+    paddingHorizontal: 30,
+    paddingVertical: 15,
   },
   retryButtonText: {
-    color: 'white',
+    color: '#ffffff',
     fontSize: 16,
     fontWeight: 'bold',
   },
   header: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    paddingVertical: 15,
-    backgroundColor: '#0066cc',
-    color: 'white',
-    paddingTop: 50,
+    paddingTop: 60,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
   },
-  controlsContainer: {
-    flexDirection: 'row',
-    padding: 10,
-    gap: 10,
+  headerTitle: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#ffffff',
+    textAlign: 'center',
+  },
+  headerSubtitle: {
+    fontSize: 16,
+    color: '#ffffff',
+    textAlign: 'center',
+    marginTop: 5,
+  },
+  mapContainer: {
+    flex: 1,
+  },
+  floatingControls: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    zIndex: 10,
+  },
+  floatingButton: {
+    marginBottom: 15,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    overflow: 'hidden',
+  },
+  floatingButtonGradient: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  searchContainer: {
+    position: 'absolute',
+    bottom: 100,
+    left: 20,
+    right: 20,
+    zIndex: 10,
   },
   searchButton: {
+    width: '100%',
+    height: 60,
+    borderRadius: 30,
+    overflow: 'hidden',
+  },
+  searchButtonGradient: {
     flex: 1,
-    backgroundColor: '#4CAF50',
-    paddingVertical: 12,
-    borderRadius: 8,
+    justifyContent: 'center',
     alignItems: 'center',
+    flexDirection: 'row',
   },
   searchButtonText: {
-    color: 'white',
+    color: '#ffffff',
     fontSize: 16,
     fontWeight: 'bold',
+    marginLeft: 10,
   },
-  centerButton: {
-    backgroundColor: '#FF9800',
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  centerButtonText: {
-    fontSize: 18,
-  },
-  clearButton: {
-    backgroundColor: '#f44336',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  clearButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  infoContainer: {
-    backgroundColor: 'white',
-    padding: 15,
-    margin: 10,
-    borderRadius: 10,
+  infoCard: {
+    position: 'absolute',
+    top: 180,
+    left: 20,
+    right: 20,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 20,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -331,25 +495,47 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
-  coordinatesRow: {
+  infoHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 15,
   },
-  infoLabel: {
-    fontSize: 16,
+  infoTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  infoTitle: {
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
+    marginLeft: 10,
   },
-  refreshButton: {
-    fontSize: 20,
-    color: '#0066cc',
+  refreshButton: {},
+  coordinatesContainer: {
+    marginBottom: 15,
   },
-  infoText: {
-    fontSize: 14,
-    color: '#333',
+  coordinateItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     marginBottom: 5,
+  },
+  coordinateLabel: {
+    fontSize: 16,
+    color: '#667eea',
+  },
+  coordinateValue: {
+    fontSize: 16,
+    color: '#333',
+  },
+  placesInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  placesText: {
+    fontSize: 16,
+    color: '#333',
+    marginLeft: 5,
   },
   modalOverlay: {
     flex: 1,
@@ -357,39 +543,43 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalContent: {
-    backgroundColor: 'white',
+    backgroundColor: '#ffffff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
     height: '50%',
   },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    padding: 15,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 20,
+    color: '#ffffff',
   },
-  categoriesList: {
-    marginBottom: 20,
-  },
+  modalCloseButton: {},
+  categoriesList: {},
   categoryItem: {
     padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  categoryGradient: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: 10,
   },
   categoryText: {
     fontSize: 16,
     color: '#333',
-  },
-  closeButton: {
-    backgroundColor: '#0066cc',
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  closeButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
   },
 });
