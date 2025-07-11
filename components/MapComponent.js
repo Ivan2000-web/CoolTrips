@@ -10,7 +10,7 @@ const MapComponent = ({ region, userLocation, onRegionChange, markers = [] }) =>
       region={region}
       onRegionChangeComplete={onRegionChange}
       showsUserLocation={true}
-      showsMyLocationButton={true}
+      showsMyLocationButton={false}
       showsCompass={true}
       showsScale={true}
       showsBuildings={true}
