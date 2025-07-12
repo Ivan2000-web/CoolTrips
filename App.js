@@ -11,13 +11,14 @@ import {
   Animated,
   Dimensions
 } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import MapComponent from './components/MapComponent';
-import { requestLocationPermission, getCurrentPosition } from './utils/locationUtils';
 import { searchNearbyPlaces, getPlaceCategories } from './services/placesService';
+import * as Location from 'expo-location';
+import MapComponent from './components/MapComponent';
+import ProgressBar from './components/ProgressBar'; // Добавьте эту строку
+import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import * as Location from 'expo-location';
+import { requestLocationPermission, getCurrentPosition } from './utils/locationUtils';
 
 const { width, height } = Dimensions.get('window');
 
@@ -35,6 +36,7 @@ export default function App() {
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [sideMenuVisible, setSideMenuVisible] = useState(false);
   const [sideMenuAnim] = useState(new Animated.Value(-width * 0.8));
+  const [searchProgress, setSearchProgress] = useState(0);
 
   useEffect(() => {
     initializeLocation();
@@ -76,23 +78,39 @@ export default function App() {
       setSearchingPlaces(true);
       setShowCategories(false);
       setSideMenuVisible(false);
+      setSearchProgress(0);
+      
+      // Add a small delay to show the initial progress state
+      setTimeout(() => setSearchProgress(0.05), 100);
       
       const places = await searchNearbyPlaces(
         userLocation.latitude, 
         userLocation.longitude, 
         2000,
-        amenity
+        amenity,
+        (progress) => {
+          // Ensure progress is always at least 0.05 to show some initial progress
+          setSearchProgress(Math.max(0.05, progress));
+        }
       );
       
-      setNearbyPlaces(places);
+      // Set progress to 1 before finishing
+      setSearchProgress(1);
       
-      if (places.length === 0) {
-        Alert.alert('Поиск', 'Места не найдены в радиусе 2км от вашего местоположения');
-      }
+      // Small delay to show 100% completion before hiding
+      setTimeout(() => {
+        setNearbyPlaces(places);
+        
+        if (places.length === 0) {
+          Alert.alert('Поиск', 'Места не найдены в радиусе 2км от вашего местоположения');
+        }
+        setSearchingPlaces(false);
+        setSearchProgress(0);
+      }, 500);
     } catch (error) {
       Alert.alert('Ошибка', 'Не удалось найти места поблизости');
-    } finally {
       setSearchingPlaces(false);
+      setSearchProgress(0);
     }
   };
 
@@ -463,13 +481,13 @@ export default function App() {
             activeOpacity={0.8}
           >
             <LinearGradient
-              colors={['rgba(255, 107, 107, 0.3)', 'rgba(238, 90, 82, 0.2)']}
+              colors={['#ff6b6b', '#ff4757']}
               style={styles.glassEffect}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
               <View style={styles.clearGlassInner}>
-                <Ionicons name="close" size={26} color="#ffffff" />
+                <Ionicons name="trash" size={26} color="#ffffff" />
                 <View style={styles.badgeGlass}>
                   <Text style={styles.badgeTextGlass}>{nearbyPlaces.length}</Text>
                 </View>
@@ -794,6 +812,15 @@ export default function App() {
           </View>
         </View>
       </Modal>
+
+      {searchingPlaces && (
+        <View style={styles.progressBarContainer}>
+          <Text style={styles.searchingText}>
+            Поиск мест поблизости...
+          </Text>
+          <ProgressBar progress={searchProgress} />
+        </View>
+      )}
     </Animated.View>
   );
 }
@@ -1123,8 +1150,8 @@ const styles = StyleSheet.create({
   
   badgeGlass: {
     position: 'absolute',
-    top: -4,
-    right: -4,
+    top: 2,
+    right: 3,
     backgroundColor: '#ff4757',
     borderRadius: 12,
     minWidth: 24,
@@ -1318,14 +1345,14 @@ const styles = StyleSheet.create({
   },
   sideMenu: {
     backgroundColor: 'white',
-    width: width * 0.85,
+    width: width * 0.85, // Changed from 085 to 0.85
     height: '100%',
     elevation: 10,
     shadowColor: '#000',
     shadowOffset: { width: 2, height: 0 },
     shadowOpacity: 0.3,
     shadowRadius: 10,
-  },
+},
   sideMenuHeader: {
     paddingTop: 60,
     paddingBottom: 25,
@@ -1783,5 +1810,25 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#ff6b6b',
     fontWeight: 'bold',
+  },
+  progressBarContainer: {
+    position: 'absolute',
+    bottom: 100,
+    left: 20,
+    right: 20,
+    zIndex: 1000,
+    alignItems: 'center',
+  },
+  searchingText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    textAlign: 'center',
+    backgroundColor: 'rgba(102, 126, 234, 0.8)',
+    paddingVertical: 5,
+    paddingHorizontal: 15,
+    borderRadius: 20,
+    overflow: 'hidden',
   },
 });
